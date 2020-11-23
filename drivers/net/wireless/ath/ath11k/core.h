@@ -75,12 +75,14 @@ static inline enum wme_ac ath11k_tid_to_ac(u32 tid)
 
 enum ath11k_skb_flags {
 	ATH11K_SKB_HW_80211_ENCAP = BIT(0),
+	ATH11K_SKB_CIPHER_SET = BIT(1),
 };
 
 struct ath11k_skb_cb {
 	dma_addr_t paddr;
 	u8 eid;
 	u8 flags;
+	u32 cipher;
 	struct ath11k *ar;
 	struct ieee80211_vif *vif;
 } __packed;
@@ -183,6 +185,7 @@ enum ath11k_dev_flags {
 	ATH11K_FLAG_RECOVERY,
 	ATH11K_FLAG_UNREGISTERING,
 	ATH11K_FLAG_REGISTERED,
+	ATH11K_FLAG_QMI_FAIL,
 };
 
 enum ath11k_monitor_flags {
@@ -430,11 +433,7 @@ struct ath11k_per_peer_tx_stats {
 };
 
 #define ATH11K_FLUSH_TIMEOUT (5 * HZ)
-
-struct ath11k_vdev_stop_status {
-	bool stop_in_progress;
-	u32  vdev_id;
-};
+#define ATH11K_VDEV_DELETE_TIMEOUT_HZ (5 * HZ)
 
 struct ath11k {
 	struct ath11k_base *ab;
@@ -505,13 +504,14 @@ struct ath11k {
 	u8 lmac_id;
 
 	struct completion peer_assoc_done;
+	struct completion peer_delete_done;
 
 	int install_key_status;
 	struct completion install_key_done;
 
 	int last_wmi_vdev_start_status;
-	struct ath11k_vdev_stop_status vdev_stop_status;
 	struct completion vdev_setup_done;
+	struct completion vdev_delete_done;
 
 	int num_peers;
 	int max_num_peers;
@@ -910,6 +910,8 @@ static inline const char *ath11k_scan_state_str(enum ath11k_scan_state state)
 
 static inline struct ath11k_skb_cb *ATH11K_SKB_CB(struct sk_buff *skb)
 {
+	BUILD_BUG_ON(sizeof(struct ath11k_skb_cb) >
+		     IEEE80211_TX_INFO_DRIVER_DATA_SIZE);
 	return (struct ath11k_skb_cb *)&IEEE80211_SKB_CB(skb)->driver_data;
 }
 
